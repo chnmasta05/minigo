@@ -82,7 +82,8 @@ class MctsNode {
   bool game_over() const {
     return (move == Coord::kResign) ||
            (move == Coord::kPass && parent != nullptr &&
-            parent->move == Coord::kPass);
+            parent->move == Coord::kPass) ||
+           (position.gomoku_winner() != Color::kEmpty);
   }
 
   // Finds the best move by visit count, N. Ties are broken using the child

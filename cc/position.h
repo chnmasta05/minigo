@@ -158,11 +158,12 @@ class Position {
 
   // State required to undo a call to PlayMove.
   struct UndoState {
-    UndoState(Coord c, Color to_play, Coord ko)
-        : c(c), to_play(to_play), ko(ko) {}
+    UndoState(Coord c, Color to_play, Coord ko, Color gomoku_winner)
+        : c(c), to_play(to_play), ko(ko), gomoku_winner(gomoku_winner) {}
     Coord c;
     Color to_play;
     Coord ko;
+    Color gomoku_winner;
     inline_vector<Coord, 4> captures;
   };
 
@@ -249,6 +250,7 @@ class Position {
   std::string ToPrettyString(bool use_ansi_colors = true) const;
 
   Color to_play() const { return to_play_; }
+  Color gomoku_winner() const { return gomoku_winner_; }
   const Stones& stones() const { return stones_; }
   int n() const { return n_; }
   Coord ko() const { return ko_; }
@@ -304,6 +306,8 @@ class Position {
   // If zobrist_history is non-null, this takes into account positional superko.
   void UpdateLegalMoves(ZobristHistory* zobrist_history);
 
+  bool HasFiveInARow(Coord c, Color color) const;
+
  private:
   // Sets the pass alive regions for the given color in result.
   // The caller is responsible for initializing all elements in `result` to
@@ -336,6 +340,7 @@ class Position {
   GroupPool groups_;
 
   Color to_play_;
+  Color gomoku_winner_ = Color::kEmpty;
   Coord ko_ = Coord::kInvalid;
 
   // Number of captures for (B, W).

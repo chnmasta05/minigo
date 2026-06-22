@@ -627,8 +627,13 @@ bool SelfplayGame::MaybePlayMove() {
 
     // TODO(tommadams): move game over logic out of MctsTree and into Game.
     if (tree_->is_game_over()) {
-      game_->SetGameOverBecauseOfPasses(
-          tree_->CalculateScore(game_->options().komi));
+      if (tree_->root()->position.gomoku_winner() != Color::kEmpty) {
+        game_->SetGameOverBecauseOfGomokuWin(
+            tree_->root()->position.gomoku_winner());
+      } else {
+        game_->SetGameOverBecauseOfPasses(
+            tree_->CalculateScore(game_->options().komi));
+      }
     }
   }
 

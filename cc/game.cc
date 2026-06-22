@@ -103,6 +103,19 @@ void Game::SetGameOverBecauseOfResign(Color winner) {
   }
 }
 
+void Game::SetGameOverBecauseOfGomokuWin(Color winner) {
+  MG_CHECK(!game_over_);
+  game_over_ = true;
+  game_over_reason_ = GameOverReason::kGomokuWin;
+  if (winner == Color::kBlack) {
+    result_ = 1;
+    result_string_ = "B+GOMOKU";
+  } else {
+    result_ = -1;
+    result_string_ = "W+GOMOKU";
+  }
+}
+
 bool Game::FindBleakestMove(int* move, float* q) const {
   if (!game_over_) {
     MG_LOG(ERROR) << "game isn't over";

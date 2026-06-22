@@ -74,6 +74,7 @@ class Game {
   enum class GameOverReason {
     kBothPassed,
     kOpponentResigned,
+    kGomokuWin,
   };
 
   static std::string FormatScore(float score);
@@ -95,6 +96,8 @@ class Game {
   void SetGameOverBecauseOfPasses(float score);
 
   void SetGameOverBecauseOfResign(Color winner);
+
+  void SetGameOverBecauseOfGomokuWin(Color winner);
 
   // Returns up to the last `num_moves` of moves that lead up to the requested
   // `move`, including the move itself.

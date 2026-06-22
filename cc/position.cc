@@ -70,9 +70,10 @@ Position::Position(Color to_play) : to_play_(to_play) {
 
 Position::UndoState Position::PlayMove(Coord c, Color color,
                                        ZobristHistory* zobrist_history) {
-  UndoState undo(c, to_play_, ko_);
+  UndoState undo(c, to_play_, ko_, gomoku_winner_);
   if (c == Coord::kPass || c == Coord::kResign) {
     ko_ = Coord::kInvalid;
+    gomoku_winner_ = Color::kEmpty;
   } else {
     if (color == Color::kEmpty) {
       color = to_play_;
@@ -81,6 +82,12 @@ Position::UndoState Position::PlayMove(Coord c, Color color,
     }
     MG_DCHECK(ClassifyMoveIgnoringSuperko(c) != MoveType::kIllegal) << c;
     undo.captures = AddStoneToBoard(c, color);
+    
+    if (HasFiveInARow(c, color)) {
+      gomoku_winner_ = color;
+    } else {
+      gomoku_winner_ = Color::kEmpty;
+    }
   }
 
   n_ += 1;
@@ -96,6 +103,7 @@ void Position::UndoMove(const UndoState& undo,
                         ZobristHistory* zobrist_history) {
   to_play_ = undo.to_play;
   ko_ = undo.ko;
+  gomoku_winner_ = undo.gomoku_winner;
   Coord c = undo.c;
 
   if (c != Coord::kPass) {
@@ -1001,6 +1009,40 @@ void Position::UpdateLegalMoves(ZobristHistory* zobrist_history) {
       }
     }
   }
+}
+
+bool Position::HasFiveInARow(Coord c, Color color) const {
+  if (c == Coord::kPass || c == Coord::kResign || c == Coord::kInvalid) {
+    return false;
+  }
+  uint16_t c_val = c;
+  int r = c_val / kN;
+  int col = c_val % kN;
+  const int dr[] = {1, 0, 1, 1};
+  const int dc[] = {0, 1, 1, -1};
+  for (int i = 0; i < 4; ++i) {
+    int count = 1;
+    for (int dir_sign = -1; dir_sign <= 1; dir_sign += 2) {
+      for (int step = 1; step < 5; ++step) {
+        int nr = r + dir_sign * dr[i] * step;
+        int ncol = col + dir_sign * dc[i] * step;
+        if (nr >= 0 && nr < kN && ncol >= 0 && ncol < kN) {
+          Coord nc(nr, ncol);
+          if (stones_[nc].color() == color) {
+            count++;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    }
+    if (count >= 5) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace minigo

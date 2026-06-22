@@ -287,7 +287,7 @@ class LibertyTracker():
 class Position():
     def __init__(self, board=None, n=0, komi=7.5, caps=(0, 0),
                  lib_tracker=None, ko=None, recent=tuple(),
-                 board_deltas=None, to_play=BLACK):
+                 board_deltas=None, to_play=BLACK, gomoku_winner=None):
         """
         board: a numpy array
         n: an int representing moves played so far
@@ -313,11 +313,29 @@ class Position():
         self.board_deltas = board_deltas if board_deltas is not None else np.zeros([
                                                                                    0, N, N], dtype=np.int8)
         self.to_play = to_play
+        self.gomoku_winner = gomoku_winner
 
     def __deepcopy__(self, memodict={}):
         new_board = np.copy(self.board)
         new_lib_tracker = copy.deepcopy(self.lib_tracker)
-        return Position(new_board, self.n, self.komi, self.caps, new_lib_tracker, self.ko, self.recent, self.board_deltas, self.to_play)
+        return Position(new_board, self.n, self.komi, self.caps, new_lib_tracker, self.ko, self.recent, self.board_deltas, self.to_play, self.gomoku_winner)
+
+    def _check_five_in_a_row(self, c, color):
+        if c is None: return False
+        r, col = c
+        directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
+        for dr, dc in directions:
+            count = 1
+            for dir_sign in (1, -1):
+                for step in range(1, 5):
+                    nr, ncol = r + dir_sign * dr * step, col + dir_sign * dc * step
+                    if 0 <= nr < N and 0 <= ncol < N and self.board[nr, ncol] == color:
+                        count += 1
+                    else:
+                        break
+            if count >= 5:
+                return True
+        return False
 
     def __str__(self, colors=True):
         if colors:
@@ -489,6 +507,11 @@ class Position():
         pos.ko = new_ko
         pos.recent += (PlayerMove(color, c),)
 
+        if pos._check_five_in_a_row(c, color):
+            pos.gomoku_winner = color
+        else:
+            pos.gomoku_winner = None
+
         # keep a rolling history of last 7 deltas - that's all we'll need to
         # extract the last 8 board states.
         pos.board_deltas = np.concatenate((
@@ -498,6 +521,8 @@ class Position():
         return pos
 
     def is_game_over(self):
+        if getattr(self, 'gomoku_winner', None) is not None:
+            return True
         return (len(self.recent) >= 2 and
                 self.recent[-1].move is None and
                 self.recent[-2].move is None)
@@ -523,6 +548,8 @@ class Position():
         return np.count_nonzero(working_board == BLACK) - np.count_nonzero(working_board == WHITE) - self.komi
 
     def result(self):
+        if getattr(self, 'gomoku_winner', None) is not None:
+            return 1 if self.gomoku_winner == BLACK else -1
         score = self.score()
         if score > 0:
             return 1
@@ -532,6 +559,8 @@ class Position():
             return 0
 
     def result_string(self):
+        if getattr(self, 'gomoku_winner', None) is not None:
+            return 'B+GOMOKU' if self.gomoku_winner == BLACK else 'W+GOMOKU'
         score = self.score()
         if score > 0:
             return 'B+' + '%.1f' % score
