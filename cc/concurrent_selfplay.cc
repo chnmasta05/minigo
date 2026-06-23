@@ -513,8 +513,13 @@ SelfplayGame::SelectLeavesStats SelfplayGame::SelectLeaves(
     stats.num_nodes_selected += leaf->position.n() - root->position.n();
 
     if (leaf->game_over()) {
-      float value =
-          leaf->position.CalculateScore(game_->options().komi) > 0 ? 1 : -1;
+      float value;
+      if (leaf->position.gomoku_winner() != Color::kEmpty) {
+        value = leaf->position.gomoku_winner() == Color::kBlack ? 1 : -1;
+      } else {
+        value =
+            leaf->position.CalculateScore(game_->options().komi) > 0 ? 1 : -1;
+      }
       tree_->IncorporateEndGameResult(leaf, value);
       stats.num_game_over_leaves += 1;
       continue;
@@ -1014,8 +1019,8 @@ void SelfplayThread::SelectLeaves() {
       TreeSearch::InferenceSpan span;
       span.selfplay_game = selfplay_games_[i].get();
       span.pos = search.inferences.size();
-      auto stats = span.selfplay_game->SelectLeaves(cache_.get(),
-                                                    &search.inferences);
+      auto stats =
+          span.selfplay_game->SelectLeaves(cache_.get(), &search.inferences);
       span.len = stats.num_leaves_queued;
       if (span.len > 0) {
         search.inference_spans.push_back(span);
