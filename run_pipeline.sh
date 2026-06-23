@@ -40,9 +40,9 @@ do
 
     # 1. Create isolated directories for the current generation's data
     # This prevents the train step from accidentally gobbling up old self-play data
-    CURR_SELFPLAY_DIR="$SELFPLAY_BASE/$CURR_MODEL_ID"
-    CURR_HOLDOUT_DIR="$HOLDOUT_BASE/$CURR_MODEL_ID"
-    CURR_SGF_DIR="$SGF_BASE/$CURR_MODEL_ID"
+    CURR_SELFPLAY_DIR="$SELFPLAY_BASE"
+    CURR_HOLDOUT_DIR="$HOLDOUT_BASE"
+    CURR_SGF_DIR="$SGF_BASE"
     
     mkdir -p "$CURR_SELFPLAY_DIR" "$CURR_HOLDOUT_DIR" "$CURR_SGF_DIR"
 
@@ -66,9 +66,10 @@ do
     # ---------------------------------------------------------
     echo "[Step 2/3] Training new model $CURR_MODEL_ID..."
     # Note: concurrent_selfplay creates a timestamped subdirectory (e.g., 2026-06-23-13). 
-    # By using /*/* we target the contents of that newly generated timestamped folder 
-    # without needing to parse the exact timestamp string.
-    BOARD_SIZE=$BOARD_SIZE python train.py "$CURR_SELFPLAY_DIR"/*/* \
+    # We grab the most recent 20 folders to use for training.
+    RECENT_FOLDERS=$(ls -1td "$CURR_SELFPLAY_DIR"/*/ | head -n 20 | sed 's/$/\*/')
+    
+    BOARD_SIZE=$BOARD_SIZE python train.py $RECENT_FOLDERS \
         --conv_width=128 \
         --trunk_layers=10 \
         --work_dir="$TF_LOGS" \
