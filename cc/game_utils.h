@@ -29,9 +29,10 @@ struct WinStats {
   struct ColorStats {
     int both_passed = 0;
     int opponent_resigned = 0;
+    int gomoku_win = 0;
 
     int total() const {
-      return both_passed + opponent_resigned;
+      return both_passed + opponent_resigned + gomoku_win;
     }
   };
 
@@ -43,6 +44,9 @@ struct WinStats {
         break;
       case Game::GameOverReason::kOpponentResigned:
         stats.opponent_resigned += 1;
+        break;
+      case Game::GameOverReason::kGomokuWin:
+        stats.gomoku_win += 1;
         break;
     }
   }
