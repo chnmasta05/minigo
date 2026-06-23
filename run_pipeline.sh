@@ -50,6 +50,7 @@ do
     # Step 1: Selfplay
     # ---------------------------------------------------------
     echo "[Step 1/3] Running selfplay with model $PREV_MODEL_ID.minigo..."
+    START_TIME=$(date +%s.%N)
     bazel-bin/cc/concurrent_selfplay \
         --model="$MODELS_DIR/${PREV_MODEL_ID}.minigo" \
         --num_readouts=800 \
@@ -60,6 +61,11 @@ do
         --holdout_dir="$CURR_HOLDOUT_DIR" \
         --sgf_dir="$CURR_SGF_DIR" \
         --num_games=$NUM_GAMES
+    END_TIME=$(date +%s.%N)
+
+    t=$(python -c "import math; print(max(1, math.floor($END_TIME - $START_TIME + 0.5)))")
+    NUM_GAMES=$(python -c "import math; print(math.ceil(1800 * $NUM_GAMES / $t))")
+    echo "Selfplay took $t seconds. Adjusted NUM_GAMES to $NUM_GAMES for next iteration."
 
     # ---------------------------------------------------------
     # Step 2: Train
@@ -88,4 +94,5 @@ do
     echo "----------------------------------------------------------"
 done
 
-echo "Pipeline finished! 25 generations completed."
+echo "Pipeline finished! $END_GEN generations completed."
+echo "Final anticipated NUM_GAMES for next iteration: $NUM_GAMES"
