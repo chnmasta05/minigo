@@ -14,11 +14,11 @@ SGF_BASE="$BASE_DIR/sgf"
 TF_LOGS="/root/tf-logs"
 
 BOARD_SIZE=9
-NUM_GAMES=2048
+NUM_GAMES=3072
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=4
-END_GEN=20
+START_GEN=8
+END_GEN=25
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
@@ -88,4 +88,4 @@ do
     echo "----------------------------------------------------------"
 done
 
-echo "Pipeline finished! 50 generations completed."
+echo "Pipeline finished! 25 generations completed."
