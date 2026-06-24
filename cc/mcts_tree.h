@@ -200,6 +200,11 @@ class MctsTree {
     // number of softpicks.
     int soft_pick_cutoff = ((kN * kN / 12) / 2) * 2;
 
+    // Fraction of the soft-pick distribution to replace with a uniform
+    // distribution over all legal (non-pass) moves. This allows even moves
+    // with zero visits to be selected during the opening.
+    float soft_pick_uniform_mix = 0.0;
+
     friend std::ostream& operator<<(std::ostream& ios, const Options& options);
   };
 

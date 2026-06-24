@@ -106,6 +106,10 @@ DEFINE_double(policy_softmax_temp, 0.98,
 DEFINE_int32(soft_pick_cutoff, -1,
              "Number of moves to use temperature-based soft-picking. "
              "If -1, uses the default ((board_size^2 / 12) / 2) * 2.");
+DEFINE_double(soft_pick_uniform_mix, 0.0,
+              "Fraction of the soft-pick distribution to replace with a "
+              "uniform distribution over all legal moves. Allows even moves "
+              "with zero visits to be selected during the opening.");
 DEFINE_bool(allow_pass, true,
             "If false, pass moves will only be read and played if there is no "
             "other legal alternative.");
@@ -901,6 +905,7 @@ void Selfplayer::ParseFlags() {
   tree_options_.value_init_penalty = FLAGS_value_init_penalty;
   tree_options_.policy_softmax_temp = FLAGS_policy_softmax_temp;
   tree_options_.soft_pick_enabled = true;
+  tree_options_.soft_pick_uniform_mix = FLAGS_soft_pick_uniform_mix;
   if (FLAGS_soft_pick_cutoff >= 0) {
     tree_options_.soft_pick_cutoff = FLAGS_soft_pick_cutoff;
   }

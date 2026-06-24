@@ -63,11 +63,12 @@ do
         --num_games=$NUM_GAMES \
         --dirichlet_alpha=0.15 \
         --noise_mix=0.4 \
-        --policy_softmax_temp=1.4 \
+        --policy_softmax_temp=0.4 \
         --disable_resign_pct=0.25 \
         --min_resign_threshold=-1.0 \
         --max_resign_threshold=-0.99 \
-        --soft_pick_cutoff=20
+        --soft_pick_cutoff=20 \
+        --soft_pick_uniform_mix=0.1
     END_TIME=$(date +%s.%N)
 
     t=$(python -c "import math; print(max(1, math.floor($END_TIME - $START_TIME + 0.5)))")

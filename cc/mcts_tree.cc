@@ -334,7 +334,8 @@ std::ostream& operator<<(std::ostream& os, const MctsTree::Options& options) {
   return os << "value_init_penalty:" << options.value_init_penalty
             << " policy_softmax_temp:" << options.policy_softmax_temp
             << " soft_pick_enabled:" << options.soft_pick_enabled
-            << " soft_pick_cutoff:" << options.soft_pick_cutoff;
+            << " soft_pick_cutoff:" << options.soft_pick_cutoff
+            << " soft_pick_uniform_mix:" << options.soft_pick_uniform_mix;
 }
 
 MctsTree::MctsTree(const Position& position, const Options& options)
@@ -705,25 +706,54 @@ Coord MctsTree::SoftPickMove(Random* rnd) const {
   // randomly choosing to pass early on in the game.
   std::array<float, kN * kN> cdf;
 
-  // For moves before the temperature cutoff, exponentiate the probabilities by
-  // a temperature slightly larger than unity to encourage diversity in early
-  // play and hopefully to move away from 3-3s.
+  // For moves before the temperature cutoff, exponentiate the visit counts by
+  // policy_softmax_temp. Values < 1.0 flatten the distribution (more diverse).
+  float visit_sum = 0;
   for (size_t i = 0; i < cdf.size(); ++i) {
     cdf[i] = std::pow(root_->child_N(i), options_.policy_softmax_temp);
+    visit_sum += cdf[i];
   }
+
+  // Mix in a uniform distribution over legal non-pass moves so that even moves
+  // with zero visits have a chance of being selected.
+  if (options_.soft_pick_uniform_mix > 0) {
+    int num_legal = 0;
+    for (size_t i = 0; i < cdf.size(); ++i) {
+      if (root_->position.legal_move(i)) {
+        num_legal += 1;
+      }
+    }
+    if (num_legal > 0) {
+      float uniform_prob = 1.0f / num_legal;
+      float mix = options_.soft_pick_uniform_mix;
+      if (visit_sum > 0) {
+        for (size_t i = 0; i < cdf.size(); ++i) {
+          float visit_prob = cdf[i] / visit_sum;
+          float legal = root_->position.legal_move(i) ? uniform_prob : 0;
+          cdf[i] = (1 - mix) * visit_prob + mix * legal;
+        }
+      } else {
+        // All reads went to pass; fall back to pure uniform over legal moves.
+        for (size_t i = 0; i < cdf.size(); ++i) {
+          cdf[i] = root_->position.legal_move(i) ? uniform_prob : 0;
+        }
+      }
+    }
+  } else if (visit_sum == 0) {
+    // No uniform mix and all reads went to pass.
+    return Coord::kPass;
+  }
+
+  // Build CDF.
   for (size_t i = 1; i < cdf.size(); ++i) {
     cdf[i] += cdf[i - 1];
   }
 
   if (cdf.back() == 0) {
-    // It's actually possible for an early model to put all its reads into pass,
-    // in which case the SearchSorted call below will always return 0. In this
-    // case, we'll just let the model have its way and allow a pass.
     return Coord::kPass;
   }
 
   Coord c = rnd->SampleCdf(absl::MakeSpan(cdf));
-  MG_DCHECK(root_->child_N(c) != 0);
   return c;
 }
 
