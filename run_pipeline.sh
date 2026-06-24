@@ -14,11 +14,11 @@ SGF_BASE="$BASE_DIR/sgf"
 TF_LOGS="/root/tf-logs"
 
 BOARD_SIZE=9
-NUM_GAMES=3072
+NUM_GAMES=4900
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=40
-END_GEN=40
+START_GEN=41
+END_GEN=50
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
