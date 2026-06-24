@@ -17,8 +17,8 @@ BOARD_SIZE=9
 NUM_GAMES=3072
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=26
-END_GEN=100
+START_GEN=39
+END_GEN=50
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
@@ -60,7 +60,14 @@ do
         --output_dir="$CURR_SELFPLAY_DIR" \
         --holdout_dir="$CURR_HOLDOUT_DIR" \
         --sgf_dir="$CURR_SGF_DIR" \
-        --num_games=$NUM_GAMES
+        --num_games=$NUM_GAMES \
+        --dirichlet_alpha=0.15 \
+        --noise_mix=0.4 \
+        --policy_softmax_temp=1.4 \
+        --disable_resign_pct=0.25 \
+        --min_resign_threshold=-1.0 \
+        --max_resign_threshold=-0.99 \
+        --soft_pick_cutoff=20
     END_TIME=$(date +%s.%N)
 
     t=$(python -c "import math; print(max(1, math.floor($END_TIME - $START_TIME + 0.5)))")

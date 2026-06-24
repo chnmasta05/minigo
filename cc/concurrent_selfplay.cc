@@ -103,6 +103,9 @@ DEFINE_bool(target_pruning, false,
 DEFINE_double(policy_softmax_temp, 0.98,
               "For soft-picked moves, the probabilities are exponentiated by "
               "policy_softmax_temp to encourage diversity in early play.\n");
+DEFINE_int32(soft_pick_cutoff, -1,
+             "Number of moves to use temperature-based soft-picking. "
+             "If -1, uses the default ((board_size^2 / 12) / 2) * 2.");
 DEFINE_bool(allow_pass, true,
             "If false, pass moves will only be read and played if there is no "
             "other legal alternative.");
@@ -898,6 +901,9 @@ void Selfplayer::ParseFlags() {
   tree_options_.value_init_penalty = FLAGS_value_init_penalty;
   tree_options_.policy_softmax_temp = FLAGS_policy_softmax_temp;
   tree_options_.soft_pick_enabled = true;
+  if (FLAGS_soft_pick_cutoff >= 0) {
+    tree_options_.soft_pick_cutoff = FLAGS_soft_pick_cutoff;
+  }
   num_games_remaining_ = FLAGS_num_games;
 }
 
