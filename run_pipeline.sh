@@ -17,8 +17,8 @@ BOARD_SIZE=9
 NUM_GAMES=3072
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=39
-END_GEN=50
+START_GEN=40
+END_GEN=40
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
