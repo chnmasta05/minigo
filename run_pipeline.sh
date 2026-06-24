@@ -14,10 +14,10 @@ SGF_BASE="$BASE_DIR/sgf"
 TF_LOGS="/root/tf-logs"
 
 BOARD_SIZE=9
-NUM_GAMES=4900
+NUM_GAMES=15000
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=41
+START_GEN=42
 END_GEN=50
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
@@ -68,7 +68,9 @@ do
         --min_resign_threshold=-1.0 \
         --max_resign_threshold=-0.99 \
         --soft_pick_cutoff=20 \
-        --soft_pick_uniform_mix=0.1
+        --soft_pick_uniform_mix=0.1 \
+        --fastplay_frequency=0.8 \
+        --fastplay_readouts=50
     END_TIME=$(date +%s.%N)
 
     t=$(python -c "import math; print(max(1, math.floor($END_TIME - $START_TIME + 0.5)))")
