@@ -162,8 +162,13 @@ void MctsPlayer::SelectLeaves(int num_leaves, int max_num_reads) {
     auto* leaf = tree_->SelectLeaf(true);
 
     if (leaf->game_over()) {
-      float value =
-          leaf->position.CalculateScore(game_->options().komi) > 0 ? 1 : -1;
+      float value;
+      if (leaf->position.gomoku_winner() != Color::kEmpty) {
+        value = leaf->position.gomoku_winner() == Color::kBlack ? 1 : -1;
+      } else {
+        value =
+            leaf->position.CalculateScore(game_->options().komi) > 0 ? 1 : -1;
+      }
       tree_->IncorporateEndGameResult(leaf, value);
       ++num_cache_misses;
       continue;
@@ -319,10 +324,15 @@ bool MctsPlayer::PlayMove(Coord c, bool is_trainable) {
 
   tree_->PlayMove(c);
 
-  // Handle consecutive passing or termination by move limit.
+  // Handle consecutive passing, termination by move limit, or Gomoku win.
   if (tree_->is_game_over()) {
-    game_->SetGameOverBecauseOfPasses(
-        tree_->CalculateScore(game_->options().komi));
+    if (tree_->root()->position.gomoku_winner() != Color::kEmpty) {
+      game_->SetGameOverBecauseOfGomokuWin(
+          tree_->root()->position.gomoku_winner());
+    } else {
+      game_->SetGameOverBecauseOfPasses(
+          tree_->CalculateScore(game_->options().komi));
+    }
   }
 
   return true;

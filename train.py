@@ -253,6 +253,15 @@ def train(*tf_records: "Records to train on"):
 def main(argv):
     """Train on examples and export the updated model weights."""
     tf_records = argv[1:]
+    
+    expanded_records = []
+    for path in tf_records:
+        if '*' in path:
+            expanded_records.extend(tf.io.gfile.glob(path))
+        else:
+            expanded_records.append(path)
+    tf_records = expanded_records
+
     logging.info("Training on %s records: %s to %s",
                  len(tf_records), tf_records[0], tf_records[-1])
     with utils.logged_timer("Training"):

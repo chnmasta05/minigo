@@ -17,8 +17,8 @@ BOARD_SIZE=9
 NUM_GAMES=3072
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=8
-END_GEN=25
+START_GEN=26
+END_GEN=100
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
@@ -73,13 +73,18 @@ do
     echo "[Step 2/3] Training new model $CURR_MODEL_ID..."
     # Note: concurrent_selfplay creates a timestamped subdirectory (e.g., 2026-06-23-13). 
     # We grab the most recent 20 folders to use for training.
+
     RECENT_FOLDERS=$(ls -1td "$CURR_SELFPLAY_DIR"/*/ | head -n 20 | sed 's/$/\*/')
+    
+    set -f
     
     BOARD_SIZE=$BOARD_SIZE python train.py $RECENT_FOLDERS \
         --conv_width=128 \
         --trunk_layers=10 \
         --work_dir="$TF_LOGS" \
         --export_path="$MODELS_DIR/$CURR_MODEL_ID"
+
+    set +f
 
     # ---------------------------------------------------------
     # Step 3: Freeze
@@ -96,3 +101,4 @@ done
 
 echo "Pipeline finished! $END_GEN generations completed."
 echo "Final anticipated NUM_GAMES for next iteration: $NUM_GAMES"
+
