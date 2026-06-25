@@ -191,11 +191,22 @@ class Evaluator {
 
     int num_games = FLAGS_parallel_games;
     for (int thread_id = 0; thread_id < num_games; ++thread_id) {
-      bool swap_models = (thread_id & 1) != 0;
+      // Cycle through 4 configurations:
+      //   0: black=eval,   N   random opening moves
+      //   1: black=eval,   N-1 random opening moves
+      //   2: black=target, N   random opening moves
+      //   3: black=target, N-1 random opening moves
+      int quarter = thread_id % 4;
+      bool swap_models = quarter >= 2;
+      int random_moves = FLAGS_random_opening_moves;
+      if (random_moves > 0 && (quarter == 1 || quarter == 3)) {
+        random_moves -= 1;
+      }
       threads_.emplace_back(
           std::bind(&Evaluator::ThreadRun, this, thread_id,
                     swap_models ? &target_model : &eval_model,
-                    swap_models ? &eval_model : &target_model));
+                    swap_models ? &eval_model : &target_model,
+                    random_moves, quarter));
     }
     for (auto& t : threads_) {
       t.join();
@@ -207,11 +218,45 @@ class Evaluator {
     MG_LOG(INFO) << FormatWinStatsTable(
         {{eval_model.name(), eval_model.GetWinStats()},
          {target_model.name(), target_model.GetWinStats()}});
+
+    // Print per-quarter breakdown if random openings are enabled.
+    if (FLAGS_random_opening_moves > 0) {
+      int N = FLAGS_random_opening_moves;
+      // Build labels for each quarter.
+      // Move N is the first non-random move. Black plays even moves (0,2,4..),
+      // white plays odd moves (1,3,5..). So:
+      //   even random_moves => black decides first
+      //   odd  random_moves => white decides first
+      auto make_label = [&](int q) -> std::string {
+        bool eval_is_black = (q < 2);
+        int rm = N;
+        if (q == 1 || q == 3) rm = N - 1;
+        std::string first_decider;
+        if (rm == 0) {
+          first_decider = "black";
+        } else {
+          first_decider = (rm % 2 == 0) ? "black" : "white";
+        }
+        std::string black_name = eval_is_black ? "eval" : "target";
+        return absl::StrFormat("B=%s rand=%d 1st=%s",
+                               black_name, rm, first_decider);
+      };
+
+      std::vector<std::pair<std::string, WinStats>> quarter_table;
+      {
+        absl::MutexLock lock(&quarter_mutex_);
+        for (int q = 0; q < 4; ++q) {
+          quarter_table.push_back({make_label(q), quarter_stats_[q]});
+        }
+      }
+      MG_LOG(INFO) << "\nPer-quarter breakdown:\n"
+                   << FormatWinStatsTable(quarter_table);
+    }
   }
 
  private:
   void ThreadRun(int thread_id, EvaluatedModel* black_model,
-                 EvaluatedModel* white_model) {
+                 EvaluatedModel* white_model, int random_moves, int quarter) {
     // Only print the board using ANSI colors if stderr is sent to the
     // terminal.
     const bool use_ansi_colors = FdSupportsAnsiColors(fileno(stderr));
@@ -253,8 +298,8 @@ class Evaluator {
       }
 
       Coord move = Coord::kResign;
-      if (FLAGS_random_opening_moves > 0 &&
-          curr_player->root()->position.n() < FLAGS_random_opening_moves) {
+      if (random_moves > 0 &&
+          curr_player->root()->position.n() < random_moves) {
         // Collect all legal on-board moves (exclude pass).
         const auto& legal = curr_player->root()->position.legal_moves();
         std::vector<Coord> candidates;
@@ -298,6 +343,12 @@ class Evaluator {
       white_model->UpdateWinStats(game);
     }
 
+    // Update per-quarter stats.
+    {
+      absl::MutexLock lock(&quarter_mutex_);
+      quarter_stats_[quarter].Update(game);
+    }
+
     if (verbose) {
       MG_LOG(INFO) << game.result_string();
       MG_LOG(INFO) << "Black was: " << game.black_name();
@@ -330,6 +381,10 @@ class Evaluator {
   std::vector<std::thread> threads_;
   std::atomic<size_t> game_id_{0};
   std::vector<std::unique_ptr<BatchingModelFactory>> batchers_;
+
+  // Per-quarter win stats for detailed breakdown.
+  absl::Mutex quarter_mutex_;
+  WinStats quarter_stats_[4] GUARDED_BY(&quarter_mutex_);
 };
 
 }  // namespace
