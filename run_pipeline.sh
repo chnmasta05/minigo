@@ -11,14 +11,14 @@ MODELS_DIR="$BASE_DIR/saved_models"
 SELFPLAY_BASE="$BASE_DIR/selfplay"
 HOLDOUT_BASE="$BASE_DIR/holdout"
 SGF_BASE="$BASE_DIR/sgf"
-TF_LOGS="/root/tf-logs"
+TF_LOGS="/root/autodl-tmp/tf-logs"
 
 BOARD_SIZE=9
 NUM_GAMES=15000
 
 # We are starting by generating model 3, up to model 50.
-START_GEN=51
-END_GEN=75
+START_GEN=71
+END_GEN=100
 
 echo "Starting Minigo pipeline from generation $START_GEN to $END_GEN..."
 
