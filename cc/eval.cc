@@ -51,6 +51,9 @@ DEFINE_bool(resign_enabled, true, "Whether resign is enabled.");
 DEFINE_double(resign_threshold, -0.999, "Resign threshold.");
 DEFINE_uint64(seed, 0,
               "Random seed. Use default value of 0 to use a time-based seed.");
+DEFINE_int32(random_opening_moves, 0,
+             "Number of opening moves to play uniformly at random from all "
+             "legal moves (excluding pass). 0 disables random openings.");
 
 // Tree search flags.
 DEFINE_int32(virtual_losses, 8,
@@ -236,6 +239,7 @@ class Evaluator {
     BatchingModelFactory::StartGame(black->model(), white->model());
     auto* curr_player = black.get();
     auto* next_player = white.get();
+    Random rnd(FLAGS_seed + thread_id, Random::kUniqueStream);
     while (!game.game_over()) {
       if (curr_player->root()->position.n() >= kMinPassAliveMoves &&
           curr_player->root()->position.CalculateWholeBoardPassAlive()) {
@@ -248,9 +252,30 @@ class Evaluator {
         break;
       }
 
-      auto move = curr_player->SuggestMove(curr_player->options().num_readouts);
-      if (verbose) {
-        std::cerr << curr_player->tree().Describe() << "\n";
+      Coord move = Coord::kResign;
+      if (FLAGS_random_opening_moves > 0 &&
+          curr_player->root()->position.n() < FLAGS_random_opening_moves) {
+        // Collect all legal on-board moves (exclude pass).
+        const auto& legal = curr_player->root()->position.legal_moves();
+        std::vector<Coord> candidates;
+        for (int i = 0; i < kNumPoints; ++i) {
+          if (legal[i]) {
+            candidates.push_back(static_cast<Coord>(i));
+          }
+        }
+        MG_CHECK(!candidates.empty());
+        move = candidates[rnd.UniformInt(0, candidates.size() - 1)];
+        if (verbose) {
+          MG_LOG(INFO) << absl::StreamFormat(
+              "%d: %s by %s (random opening)",
+              curr_player->root()->position.n() + 1, move.ToGtp(),
+              curr_player->name());
+        }
+      } else {
+        move = curr_player->SuggestMove(curr_player->options().num_readouts);
+        if (verbose) {
+          std::cerr << curr_player->tree().Describe() << "\n";
+        }
       }
       MG_CHECK(curr_player->PlayMove(move));
       if (move != Coord::kResign) {
