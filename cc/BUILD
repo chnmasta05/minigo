@@ -512,6 +512,33 @@ minigo_cc_binary(
 )
 
 minigo_cc_binary(
+    name = "rank",
+    srcs = ["rank.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        ":game",
+        ":game_utils",
+        ":init",
+        ":logging",
+        ":mcts",
+        ":random",
+        ":tf_utils",
+        ":zobrist",
+        "//cc/file",
+        "//cc/model",
+        "//cc/model:batching_model",
+        "//cc/model:loader",
+        "@com_github_gflags_gflags//:gflags",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+    ],
+)
+
+minigo_cc_binary(
     name = "gtp",
     srcs = ["gtp.cc"],
     visibility = ["//visibility:public"],
