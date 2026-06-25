@@ -242,10 +242,12 @@ class Evaluator {
                                black_name, rm, first_decider);
       };
 
+      // Display order: 0, 3, 2, 1 — groups rows by which model makes
+      // the first non-random decision.
       std::vector<std::pair<std::string, WinStats>> quarter_table;
       {
         absl::MutexLock lock(&quarter_mutex_);
-        for (int q = 0; q < 4; ++q) {
+        for (int q : {0, 3, 2, 1}) {
           quarter_table.push_back({make_label(q), quarter_stats_[q]});
         }
       }
