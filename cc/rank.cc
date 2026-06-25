@@ -367,6 +367,11 @@ MatchResult PlayPair(const std::string& m1_path, const std::string& m2_path,
         } else {
           m2_wins++;
         }
+        if (total_games % 10 == 0 || total_games == num_game_tasks) {
+          MG_LOG(INFO) << "  Progress: " << total_games << "/"
+                       << num_game_tasks << " games  (" << m1_wins << "-"
+                       << m2_wins << ")";
+        }
       }
     }
   };
