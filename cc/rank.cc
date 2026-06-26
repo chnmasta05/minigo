@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <glob.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -19,7 +20,6 @@
 #include <cmath>
 #include <fstream>
 #include <functional>
-#include <glob.h>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -115,8 +115,8 @@ std::vector<std::string> ExpandGlobs(const std::string& flag_value) {
         token.find('?') != std::string::npos) {
       // Glob expansion.
       glob_t glob_result;
-      int ret = glob(token.c_str(), GLOB_TILDE | GLOB_NOSORT, nullptr,
-                     &glob_result);
+      int ret =
+          glob(token.c_str(), GLOB_TILDE | GLOB_NOSORT, nullptr, &glob_result);
       if (ret == 0) {
         for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
           result.push_back(glob_result.gl_pathv[i]);
@@ -266,8 +266,8 @@ MatchResult PlayPair(const std::string& m1_path, const std::string& m2_path,
     m2_name = model->name();
   }
 
-  MG_LOG(INFO) << "Playing pair: " << m1_name << " vs " << m2_name
-               << " (" << num_game_tasks << " games)";
+  MG_LOG(INFO) << "Playing pair: " << m1_name << " vs " << m2_name << " ("
+               << num_game_tasks << " games)";
 
   auto worker = [&](int worker_id) {
     while (true) {
@@ -367,10 +367,9 @@ MatchResult PlayPair(const std::string& m1_path, const std::string& m2_path,
         } else {
           m2_wins++;
         }
-        if (total_games % 10 == 0 || total_games == num_game_tasks) {
-          MG_LOG(INFO) << "  Progress: " << total_games << "/"
-                       << num_game_tasks << " games  (" << m1_wins << "-"
-                       << m2_wins << ")";
+        if (total_games % 4 == 0 || total_games == num_game_tasks) {
+          MG_LOG(INFO) << "  Progress: " << total_games << "/" << num_game_tasks
+                       << " games  (" << m1_wins << "-" << m2_wins << ")";
         }
       }
     }
@@ -393,9 +392,8 @@ MatchResult PlayPair(const std::string& m1_path, const std::string& m2_path,
   result.m1_wins = m1_wins;
   result.m2_wins = m2_wins;
 
-  MG_LOG(INFO) << "Result: " << m1_name << " vs " << m2_name << ": "
-               << m1_wins << "-" << m2_wins << " (" << total_games
-               << " games)";
+  MG_LOG(INFO) << "Result: " << m1_name << " vs " << m2_name << ": " << m1_wins
+               << "-" << m2_wins << " (" << total_games << " games)";
 
   return result;
 }
@@ -513,8 +511,7 @@ void RunPlayMode() {
                       static_cast<size_t>(oldest_anchor_idx)) !=
             opponent_indices.end();
         if (!already_in) {
-          opponent_indices.push_back(
-              static_cast<size_t>(oldest_anchor_idx));
+          opponent_indices.push_back(static_cast<size_t>(oldest_anchor_idx));
         }
       }
 
@@ -525,8 +522,7 @@ void RunPlayMode() {
                       static_cast<size_t>(latest_anchor_idx)) !=
             opponent_indices.end();
         if (!already_in) {
-          opponent_indices.push_back(
-              static_cast<size_t>(latest_anchor_idx));
+          opponent_indices.push_back(static_cast<size_t>(latest_anchor_idx));
         }
       }
     }
@@ -604,11 +600,12 @@ void RunCalculateMode() {
 
   // Build per-model matchup data.
   // For each pair of models, accumulate total games and wins.
+  // matchups[i][j].wins_i = wins for model i against model j.
+  // matchups[i][j].total = total games between i and j (symmetric).
   struct Matchup {
-    int wins_i = 0;   // wins for model i against model j
-    int total = 0;     // total games between i and j
+    int wins_i = 0;
+    int total = 0;
   };
-  // matchups[i][j] = how model i did against model j.
   std::vector<std::vector<Matchup>> matchups(n, std::vector<Matchup>(n));
 
   for (const auto& r : results) {
@@ -620,55 +617,119 @@ void RunCalculateMode() {
     matchups[j][i].total += r.games_played;
   }
 
-  // Iterative rating computation.
-  const float K = 32.0f;
-  std::vector<float> R(n, 0.0f);
-  std::vector<float> R_new(n, 0.0f);
+  // Apply Laplace smoothing (virtual draws): for every pair that has played
+  // at least one game, add 1 virtual win for each side. This prevents
+  // infinite ratings from 100% win rates. E.g. 40-0 becomes 41-1,
+  // capping the max Elo difference to ~645 for that matchup.
+  for (int i = 0; i < n; ++i) {
+    for (int j = i + 1; j < n; ++j) {
+      if (matchups[i][j].total > 0) {
+        matchups[i][j].wins_i += 1;
+        matchups[i][j].total += 2;
+        matchups[j][i].wins_i += 1;
+        matchups[j][i].total += 2;
+      }
+    }
+  }
 
-  for (int iter = 0; iter < 10000; ++iter) {
-    float max_change = 0.0f;
+  // Bradley-Terry Maximum Likelihood Estimation.
+  //
+  // The Bradley-Terry model parameterizes each model i with a strength
+  // γ_i > 0, where P(i beats j) = γ_i / (γ_i + γ_j).
+  //
+  // The MLE update rule (from the MM algorithm) is:
+  //   γ_i^(new) = W_i / Σ_j [ N_ij / (γ_i^(old) + γ_j^(old)) ]
+  //
+  // where W_i = total wins for model i across all opponents,
+  //       N_ij = total games between i and j.
+  //
+  // After convergence, we convert to Elo: R_i = 400 * log10(γ_i).
+
+  // Compute total wins for each model (with Laplace smoothing already applied).
+  std::vector<double> W(n, 0.0);
+  for (int i = 0; i < n; ++i) {
+    for (int j = 0; j < n; ++j) {
+      if (i == j) continue;
+      W[i] += matchups[i][j].wins_i;
+    }
+  }
+
+  // Initialize all γ_i = 1.0 (equivalent to rating 0).
+  std::vector<double> gamma(n, 1.0);
+  std::vector<double> gamma_new(n, 1.0);
+
+  const int max_iters = 10000;
+  const double convergence_threshold = 1e-6;
+
+  for (int iter = 0; iter < max_iters; ++iter) {
+    double max_change = 0.0;
     for (int i = 0; i < n; ++i) {
-      float W_total = 0.0f;
-      float E_total = 0.0f;
+      if (W[i] == 0.0) {
+        // Model with zero wins keeps its current gamma.
+        gamma_new[i] = gamma[i];
+        continue;
+      }
+      double denom = 0.0;
       for (int j = 0; j < n; ++j) {
         if (i == j) continue;
-        if (matchups[i][j].total == 0) continue;
-        W_total += matchups[i][j].wins_i;
-        float win_rate = static_cast<float>(matchups[i][j].wins_i) /
-                         matchups[i][j].total;
-        E_total += win_rate;
+        int N_ij = matchups[i][j].total;
+        if (N_ij == 0) continue;
+        denom += static_cast<double>(N_ij) / (gamma[i] + gamma[j]);
       }
-      R_new[i] = R[i] + K * (W_total - E_total);
-      max_change = std::max(max_change, std::abs(R_new[i] - R[i]));
+      if (denom > 0.0) {
+        gamma_new[i] = W[i] / denom;
+      } else {
+        gamma_new[i] = gamma[i];
+      }
+      double ratio = gamma_new[i] / gamma[i];
+      max_change = std::max(max_change, std::abs(ratio - 1.0));
     }
-    R = R_new;
-    if (max_change < 0.1f) {
+
+    // Normalize so geometric mean = 1 (prevents drift).
+    double log_sum = 0.0;
+    for (int i = 0; i < n; ++i) {
+      log_sum += std::log(gamma_new[i]);
+    }
+    double geo_mean = std::exp(log_sum / n);
+    for (int i = 0; i < n; ++i) {
+      gamma_new[i] /= geo_mean;
+    }
+
+    gamma = gamma_new;
+    if (max_change < convergence_threshold) {
       MG_LOG(INFO) << "Converged after " << (iter + 1) << " iterations.";
       break;
     }
   }
 
-  // Offset so R[0] = 0.
-  float offset = R[0];
+  // Convert γ to Elo ratings: R_i = 400 * log10(γ_i).
+  std::vector<double> R(n);
+  for (int i = 0; i < n; ++i) {
+    R[i] = 400.0 * std::log10(gamma[i]);
+  }
+
+  // Offset so R[0] = 0 (first model is the baseline).
+  double offset = R[0];
   for (int i = 0; i < n; ++i) {
     R[i] -= offset;
   }
 
   // Find max name length for alignment.
-  size_t max_name_len = 0;
+  size_t max_name_len = 5;  // minimum "Model"
   for (const auto& name : model_names) {
     max_name_len = std::max(max_name_len, name.size());
   }
 
   // Output ratings.
-  std::cout << "\nModel Ratings:\n";
-  std::cout << std::string(max_name_len + 12, '-') << "\n";
+  std::cout << "\n" << absl::StreamFormat("%-*s  %8s", max_name_len,
+                                          "Model", "Elo") << "\n";
+  std::cout << std::string(max_name_len + 10, '-') << "\n";
   for (int i = 0; i < n; ++i) {
     std::cout << absl::StreamFormat("%-*s  %8.1f", max_name_len,
                                     model_names[i], R[i])
               << "\n";
   }
-  std::cout << std::string(max_name_len + 12, '-') << "\n";
+  std::cout << std::string(max_name_len + 10, '-') << "\n";
 }
 
 }  // namespace
